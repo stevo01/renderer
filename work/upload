@@ -1,0 +1,25 @@
+#!/bin/bash
+
+while true; do
+	sleep 1
+	if [ -e tmp/sending ]; then
+		if [ sftp -q -B 131072 -b tmp/sending 195.37.132.70 >/dev/null ]; then
+  		rm tmp/sending
+	  	echo $(date) Sent
+	  fi
+		sleep 3
+	fi
+	if [ $(ls tmp | grep -c '.send') -ne 0 ]; then
+		for file in $(ls tmp | grep '.send'); do
+			mv tmp/$file tmp/send
+			cat tmp/send >> tmp/sending
+		done
+		rm tmp/send
+	fi
+	if [ $(ls tmp | grep -c '.delete') -ne 0 ]; then
+		for file in $(ls tmp | grep '.delete'); do
+		sftp -q -B 131072 -b tmp/$file 195.37.132.70 >/dev/null
+		rm tmp/$file
+		done
+	fi
+done
