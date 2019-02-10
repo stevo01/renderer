@@ -26,9 +26,8 @@ while true; do
       ty=$(echo $file | cut -f 2 -d'-')
       z=$(echo $file | cut -f 3 -d'-')
       z=$(echo $z | cut -f 1 -d'.')
-      java -jar jrender.jar tmp/ tiles/ $z $tx $ty &
-      echo "$(date) rendering $z $tx $ty" >> log.txt
-      sleep 30
+      java -jar jrender.jar tmp/ tiles/ $z $tx $ty 2>/dev/null
+      echo "$(date) rendering $z $tx $ty" >> log.txt      
       rm tmp/$file
   	done
   fi

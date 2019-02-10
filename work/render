@@ -1,38 +1,23 @@
 #!/bin/bash
 
 while true; do
-	while [ ! -e next.osm ]; do
-    sleep 10
-	done
-	while [ ! -e done ]; do
-    sleep 10
-	done
-	rm done
+  echo "[timeout:3600];(rel['seamark:type'];>;way['seamark:type'];>;node['seamark:type'];);out meta;" | ./Overpass/osm3s_query > xapi.osm 2> /dev/null
+  mv xapi.osm next.osm
 	echo "$(date) Parse world data" >> log.txt
-	if [ $(echo $(date "+%M"|sed 's/^0//')) -lt 5 ]; then
+	if [ $(echo $(date "+%M"|sed 's/^0//')) -lt 10 ]; then
   	if [ $(echo $(date "+%H"|sed 's/^0//')) -eq 0 ]; then
   	  scp -q -C world.osm 195.37.132.70:~/tiles/
   	  echo "$(date) World uploaded" >> log.txt
   	fi
 	fi
 	diff world.osm next.osm | grep id= | grep -v "<tag" > diffs
+	touch hold
 	java -jar jsearch.jar ./
 	mv next.osm world.osm
+	rm hold
   if [ -s diffs ]; then
     echo "$(date) New rendering queued" >> log.txt
   else
     echo "$(date) No changes" >> log.txt
   fi
-	if [ -e stop ]; then
-		echo "$(date) Stopped" >> log.txt
-		exit
-	fi
-	if [ -e pause ]; then
-		echo "$(date) Paused" >> log.txt
-		while [ -e pause ]; do
-			sleep 300
-		done
-		echo "$(date) Resumed" >> log.txt
-	fi
-	scp -q hs mini5.local:~/seamaps/work/done
 done
