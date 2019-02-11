@@ -10,12 +10,4 @@ while true; do
 		done
 	fi
   sleep 2
-	if [ $(ls tmp | grep -c '.delete') -ne 0 ]; then
-		for file in $(ls tmp | grep '.delete'); do
-		sftp -q -B 131072 -b tmp/$file 195.37.132.70 >/dev/null
-   	echo $(date) $file sent
-		rm tmp/$file
-		done
-	fi
-  sleep 2
 done
