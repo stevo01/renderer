@@ -11,13 +11,33 @@ while true; do
   	fi
 	fi
 	diff world.osm next.osm | grep id= | grep -v "<tag" > diffs
-	touch hold
 	java -jar jsearch.jar ./
 	mv next.osm world.osm
-	rm hold
   if [ -s diffs ]; then
     echo "$(date) New rendering queued" >> log.txt
   else
     echo "$(date) No changes" >> log.txt
   fi
+  for file in $(ls tmp | grep "\.osm"); do
+    while [ $(ls tmp | grep -c "\.send") -gt 10 ]; do
+      sleep 30
+    done
+    while [ $(ps -a | grep jrender | grep -c java) -gt 3 ]; do
+      sleep 1
+    done
+  	if [ -e hold ]; then
+      echo "Holding..."
+			while [ -e hold ]; do
+  		  sleep 10
+  		done
+  		echo "Resuming"
+   	fi
+    tx=$(echo $file | cut -f 1 -d'-')
+    ty=$(echo $file | cut -f 2 -d'-')
+    z=$(echo $file | cut -f 3 -d'-')
+    z=$(echo $z | cut -f 1 -d'.')
+    echo "$(date) rendering $z $tx $ty" >> log.txt      
+    java -jar jrender.jar tmp/ tiles/ $z $tx $ty 2>/dev/null
+    rm tmp/$file
+  done
 done
