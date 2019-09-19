@@ -1,36 +1,37 @@
 #!/bin/bash
 
 while true; do
-  echo "[timeout:3600];(rel['seamark:type'];>;way['seamark:type'];>;node['seamark:type'];);out meta;" | ./Overpass/osm3s_query > xapi.osm 2> /dev/null
-  mv xapi.osm next.osm
-	echo "$(date) Parse world data" >> log.txt
-	if [ $(echo $(date "+%M"|sed 's/^0//')) -lt 10 ]; then
-  	if [ $(echo $(date "+%H"|sed 's/^0//')) -eq 0 ]; then
-  	  scp -q -C world.osm 195.37.132.70:~/tiles/
-  	  echo "$(date) World uploaded" >> log.txt
-  	fi
-	fi
-	diff world.osm next.osm | grep id= | grep -v "<tag" > diffs
-	java -jar jsearch.jar ./
-	mv next.osm world.osm
-  if [ -s diffs ]; then
-    echo "$(date) New rendering queued" >> log.txt
+ 	if [ ! -e hold ]; then
+    echo "[timeout:3600];(rel['seamark:type'];>;way['seamark:type'];>;node['seamark:type'];);out meta;" | ./Overpass/osm3s_query > xapi.osm 2> /dev/null
+    mv xapi.osm next.osm
+	  echo "$(date) Parse world data" >> log.txt
+	  if [ $(echo $(date "+%M"|sed 's/^0//')) -lt 10 ]; then
+  	  if [ $(echo $(date "+%H"|sed 's/^0//')) -eq 0 ]; then
+  	    scp -q -C world.osm 195.37.132.70:~/tiles/
+  	    echo "$(date) World uploaded" >> log.txt
+  	  fi
+	  fi
+	  diff world.osm next.osm | grep id= | grep -v "<tag" > diffs
+	  java -jar jsearch.jar ./
+	  mv next.osm world.osm
+    if [ -s diffs ]; then
+      echo "$(date) New rendering queued" >> log.txt
+    else
+      echo "$(date) No changes" >> log.txt
+    fi
   else
-    echo "$(date) No changes" >> log.txt
+  	while [ -e hold ]; do
+	    sleep 10
+	  done
+  	echo "Resuming"
   fi
   for file in $(ls tmp | grep "\.osm"); do
     while [ $(ls tmp | grep -c "\.send") -gt 10 ]; do
       sleep 30
     done
-    while [ $(ps -a | grep jrender | grep -c java) -gt 3 ]; do
-      sleep 1
-    done
   	if [ -e hold ]; then
       echo "Holding..."
-			while [ -e hold ]; do
-  		  sleep 10
-  		done
-  		echo "Resuming"
+  		break
    	fi
     tx=$(echo $file | cut -f 1 -d'-')
     ty=$(echo $file | cut -f 2 -d'-')
