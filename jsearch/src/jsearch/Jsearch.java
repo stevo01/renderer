@@ -11,82 +11,192 @@ package jsearch;
 
 import java.io.*;
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+
 
 public class Jsearch {
-	public static class MapBB {
-		public double minlat;
-		public double minlon;
-		public double maxlat;
-		public double maxlon;
+	
+	private static final Logger log = Logger.getLogger( Jsearch.class.getName() );
+	
+	
+	public static void main(String[] args) throws Exception 
+	{
+		log.setLevel(Level.INFO);
+		log.info("bgn: Jsearch");
+		long startTime = System.currentTimeMillis();
+		
+		String dir = args[0];
+		
+		if(args.length == 1)
+		{			
+			generate_diff(dir);
+		}
+		else if(args.length == 3)
+		{
+			int x_z9 = Integer.parseInt(args[1]);
+			int y_z9 = Integer.parseInt(args[2]);
+			generate_static(dir, x_z9, y_z9);
+		}	
+	
+		log.info("end: Jsearch\n");
+
+		long stopTime = System.currentTimeMillis();
+		log.info(String.format("Runtime = %d ms",stopTime - startTime));
+		
+		System.exit(0);
+		
 	}
 	
-	public static void main(String[] args) throws Exception {
+	static void generate_static(String dir, int x_z9, int y_z9) throws Exception
+    {
+		HashMap<Integer, Boolean> z9s = new HashMap<Integer, Boolean>();
+		HashMap<Integer, Boolean> z10s = new HashMap<Integer, Boolean>();
+		HashMap<Integer, Boolean> z11s = new HashMap<Integer, Boolean>();
+		HashMap<Integer, Boolean> z12s = new HashMap<Integer, Boolean>();
+		
+		z9s.put((x_z9 * 512) + (y_z9), true);
+		
+		for(int x = 0; x<2; x++ ) 
+		{
+			for(int y = 0; y<2; y++ ) 
+			{
+				z10s.put(((x_z9*2+x) * 1024) + (y_z9*2+y), true);
+			}
+		}
+		
+		for(int x = 0; x<4; x++ ) 
+		{
+			for(int y = 0; y<4; y++ ) 
+			{
+				z11s.put(((x_z9*4+x) * 2048) + (y_z9*4+y), true);
+			}
+		}
+		
+		for(int x = 0; x<8; x++ ) 
+		{
+			for(int y = 0; y<8; y++ ) 
+			{
+				z12s.put(((x_z9*8+x) * 4096) + (y_z9*8+y), true);
+			}
+		}
+	
+		generate_osm_extract(dir, z9s, z10s, z11s, z12s);
+		return;
+		
+    }
+
+	static void generate_diff(String dir) throws Exception
+    {
 		HashMap<Long, Boolean> cnodes = new HashMap<Long, Boolean>();
 		HashMap<Long, Boolean> cways = new HashMap<Long, Boolean>();
 		HashMap<Long, Boolean> crels = new HashMap<Long, Boolean>();
 		HashMap<Long, Boolean> nnodes = new HashMap<Long, Boolean>();
 		HashMap<Long, Boolean> nways = new HashMap<Long, Boolean>();
 		HashMap<Long, Boolean> nrels = new HashMap<Long, Boolean>();
-		String dir = args[0];
-		long id = 0;
+
 		HashMap<Integer, Boolean> z9s = new HashMap<Integer, Boolean>();
 		HashMap<Integer, Boolean> z10s = new HashMap<Integer, Boolean>();
 		HashMap<Integer, Boolean> z11s = new HashMap<Integer, Boolean>();
 		HashMap<Integer, Boolean> z12s = new HashMap<Integer, Boolean>();
+		
+		long id = 0;
+		
+		String InputFile=dir+"diffs";
+		
+		log.info("Start of Jsearch\n");
+		log.info("analyse diff file="+InputFile+"\n");
+		
+		// todo: set filename and path via command line argument instead usage of fix filename ...
 		BufferedReader in = new BufferedReader(new FileReader(dir + "diffs"));
 		String ln;
-		while ((ln = in.readLine()) != null) {
-			for (String token : ln.split("[ ]+")) {
-				if (token.matches("^id=.+")) {
+		while ((ln = in.readLine()) != null) 
+		{
+			for (String token : ln.split("[ ]+")) 
+			{
+				if (token.matches("^id=.+")) 
+				{
 					id = Long.parseLong(token.split("[\"\']")[1]);
 					break;
 				}
 			}
-			if (ln.matches("^<.+")) {
-				if (ln.contains("<node")) {
+			if (ln.matches("^<.+")) 
+			{
+				if (ln.contains("<node")) 
+				{
 					cnodes.put(id, true);
-				} else if (ln.contains("<way")) {
+				} else if (ln.contains("<way")) 
+				{
 					cways.put(id, true);
-				} else if (ln.contains("<relation")) {
+				} else if (ln.contains("<relation")) 
+				{
 					crels.put(id, true);
 				}
-			} else if (ln.matches("^>.+")) {
-				if (ln.contains("<node")) {
+			} 
+			else if (ln.matches("^>.+")) 
+			{
+				if (ln.contains("<node")) 
+				{
 					nnodes.put(id, true);
-				} else if (ln.contains("<way")) {
+				} else if (ln.contains("<way")) 
+				{
 					nways.put(id, true);
-				} else if (ln.contains("<relation")) {
+				} else if (ln.contains("<relation")) 
+				{
 					nrels.put(id, true);
 				}
 			}
 		}
 		in.close();
 		
+		
+		System.out.format("new nodes=%d%n",nnodes.size());
+		System.out.format("new  ways=%d%n",nways.size());
+		System.out.format("new  rels=%d%n",nrels.size());
+		
+		System.out.format("removed nodes=%d%n",cnodes.size());
+		System.out.format("removed  ways=%d%n",cways.size());
+		System.out.format("removed  rels=%d%n",crels.size());
+		
 		boolean next = false;
-		do {
+		do 
+		{
 			if (next) {
 				in = new BufferedReader(new FileReader(dir + "next.osm"));
+				log.info("analyse file next.osm");
 			} else {
 				in = new BufferedReader(new FileReader(dir + "world.osm"));
+				log.info("analyse file world.osm");
 			}
+			
 			boolean inOsm = false;
 			boolean inNode = false;
 			boolean inWay = false;
 			boolean inRel = false;
 			ArrayList<String> buf = new ArrayList<String>();
-			while ((ln = in.readLine()) != null) {
-				if (inOsm) {
-					if (inNode) {
+			
+			log.info("start: copy content from file to ram buffer\n");
+			
+			while ((ln = in.readLine()) != null) 
+			{
+				if (inOsm) 
+				{
+					if (inNode) 
+					{
 						if (ln.contains("</node")) {
 							buf.add(ln);
 							inNode = false;
 						}
-					} else if (ln.contains("<node")) {
+					} 
+					else if (ln.contains("<node")) 
+					{
 						buf.add(ln);
 						if (!ln.contains("/>")) {
 							inNode = true;
 						}
-					} else if (inWay) {
+					} 
+					else if (inWay) 
+					{
 						if (ln.contains("<nd")) {
 							buf.add(ln);
 						}
@@ -94,17 +204,23 @@ public class Jsearch {
 							buf.add(ln);
 							inWay = false;
 						}
-					} else if (ln.contains("<way")) {
+					} 
+					else if (ln.contains("<way")) 
+					{
 						buf.add(ln);
 						if (!ln.contains("/>")) {
 							inWay = true;
 						}
-					} else if (inRel) {
-						if (ln.contains("<member")) {
+					} 
+					else if (inRel) 
+					{
+						if (ln.contains("<member")) 
+						{
 							String type = "";
 							String role = "";
 							long ref = 0;
-							for (String token : ln.split("[ ]+")) {
+							for (String token : ln.split("[ ]+")) 
+							{
 								if (token.matches("^ref=.+")) {
 									ref = Long.parseLong(token.split("[\"\']")[1]);
 								} else if (token.matches("^type=.+")) {
@@ -113,7 +229,8 @@ public class Jsearch {
 									role = (token.split("[\"\']")[1]);
 								}
 							}
-							if ((role.equals("outer") || role.equals("inner")) && type.equals("way")) {
+							if ((role.equals("outer") || role.equals("inner")) && type.equals("way")) 
+							{
 								if (next) {
 									nways.put(ref, true);
 								} else {
@@ -124,8 +241,11 @@ public class Jsearch {
 						if (ln.contains("</relation")) {
 							inRel = false;
 						}
-					} else if (ln.contains("<relation")) {
-						for (String token : ln.split("[ ]+")) {
+					} 
+					else if (ln.contains("<relation")) 
+					{
+						for (String token : ln.split("[ ]+")) 
+						{
 							if (token.matches("^id=.+")) {
 								id = Long.parseLong(token.split("[\"\']")[1]);
 							}
@@ -133,25 +253,40 @@ public class Jsearch {
 						if (((next && nrels.containsKey(id)) || (!next && crels.containsKey(id))) && !ln.contains("/>")) {
 							inRel = true;
 						}
-					} else if (ln.contains("</osm")) {
+					} 
+					else if (ln.contains("</osm")) 
+					{
+						log.info("end of osm section found");
 						buf.add(ln);
 						inOsm = false;
 						break;
 					}
-				} else if (ln.contains("<osm")) {
+				} 
+				else if (ln.contains("<osm")) 
+				{
+					log.info("start of osm section found");
 					buf.add(ln);
 					inOsm = true;
 				}
 			}
 			in.close();
+			
+			log.info("end: copy content from file to ram buffer");
+			
+			log.info("start: process way(s)");
 			inOsm = false;
 			inWay = false;
-			for (String line : buf) {
+			for (String line : buf) 
+			{
 				ln = line;
-				if (inOsm) {
-					if (inWay) {
-						if (ln.contains("<nd")) {
-							for (String token : ln.split("[ ]+")) {
+				if (inOsm) 
+				{
+					if (inWay) 
+					{
+						if (ln.contains("<nd")) 
+						{
+							for (String token : ln.split("[ ]+")) 
+							{
 								if (token.matches("^ref=.+")) {
 									id = Long.parseLong(token.split("[\"\']")[1]);
 								}
@@ -165,8 +300,11 @@ public class Jsearch {
 						if (ln.contains("</way")) {
 							inWay = false;
 						}
-					} else if (ln.contains("<way")) {
-						for (String token : ln.split("[ ]+")) {
+					} 
+					else if (ln.contains("<way")) 
+					{
+						for (String token : ln.split("[ ]+")) 
+						{
 							if (token.matches("^id=.+")) {
 								id = Long.parseLong(token.split("[\"\']")[1]);
 							}
@@ -182,39 +320,81 @@ public class Jsearch {
 					inOsm = true;
 				}
 			}
-			for (String line : buf) {
+			
+			log.info("end: process ways");
+			
+			log.info("start: process node");
+			for (String line : buf) 
+			{
 				ln = line;
-				if (ln.contains("<node")) {
+				if (ln.contains("<node")) 
+				{
 					Double lat = 0.0;
 					Double lon = 0.0;
-					for (String token : ln.split("[ ]+")) {
-						if (token.matches("^id=.+")) {
+					for (String token : ln.split("[ ]+")) 
+					{
+						if (token.matches("^id=.+")) 
+						{
 							id = Long.parseLong(token.split("[\"\']")[1]);
-						} else if (token.matches("^lat=.+")) {
+						} 
+						else if (token.matches("^lat=.+")) 
+						{
 							lat = Double.parseDouble(token.split("[\"\']")[1]);
-						} else if (token.matches("^lon=.+")) {
+						} 
+						else if (token.matches("^lon=.+")) 
+						{
 							lon = Double.parseDouble(token.split("[\"\']")[1]);
 						}
 					}
-					if ((next && nnodes.containsKey(id)) || (!next && cnodes.containsKey(id))) {
+					if ((next && nnodes.containsKey(id)) || (!next && cnodes.containsKey(id))) 
+					{
 						int xtile = lon2xtile(lon, 12);
 						int ytile = lat2ytile(lat, 12);
 						z9s.put(((xtile / 8) * 512) + (ytile / 8), true);
 						z10s.put(((xtile / 4) * 1024) + (ytile / 4), true);
 						z11s.put(((xtile / 2) * 2048) + (ytile / 2), true);
-						for (int x = xtile - 1; x <= xtile + 1; x++) {
-							for (int y = ytile - 1; y <= ytile + 1; y++) {
-								if ((y >= 0) && (y <= 4095))
+						for (int x = xtile - 1; x <= xtile + 1; x++) 
+						{
+							for (int y = ytile - 1; y <= ytile + 1; y++) 
+							{
+								if ((y >= 0) && (y <= 4095)) 
+								{
 									z12s.put((((x < 0) ? 4095 : (x > 4095) ? 0 : x) * 4096) + y, true);
+								}
 							}
 						}
 					}
 				}
 			}
+			log.info("end: process node");
+			
 			next = !next;
 		} while (next);
 		
-		for (int t : z9s.keySet()) {
+		generate_osm_extract(dir, z9s, z10s, z11s, z12s);
+		return;
+	}
+		
+	static void generate_osm_extract(String dir,
+									 HashMap<Integer, Boolean> z9s, 
+				  					 HashMap<Integer, Boolean> z10s,
+				 					 HashMap<Integer, Boolean> z11s,
+									 HashMap<Integer, Boolean> z12s) throws Exception
+	{			
+		
+		System.out.format("bgn: generate osm files");
+		log.info(String.format("number of files  z9s=%d", z9s.size()));
+		log.info(String.format("number of files z10s=%d", z10s.size()));
+		log.info(String.format("number of files z11s=%d", z11s.size()));
+		log.info(String.format("number of files z12s=%d", z12s.size()));
+				
+		log.info("bgn: process z9s");
+		for (int t : z9s.keySet()) 
+		{
+			String filename=dir + "tmp/" + (t / 512) + "-" + (t % 512) + "-9.osm";
+			log.info("generate file"+filename);
+				
+		    // determine x.y tile from zoom level 12
 			int x = (t / 512) * 8;
 			int y = (t % 512) * 8;
 			MapBB bb = new MapBB();
@@ -222,14 +402,25 @@ public class Jsearch {
 			bb.maxlon = tile2lon((x + 10) % 4095, 12);
 			bb.minlat = tile2lat(Math.min((y + 10), 4095), 12);
 			bb.maxlat = tile2lat(Math.max((y - 2), 0), 12);
+			
 			ArrayList<String> ext = Extract.extractData(dir + "next.osm", bb);
-			PrintStream out = new PrintStream(dir + "tmp/" + (t / 512) + "-" + (t % 512) + "-9.osm");
+			PrintStream out = new PrintStream(filename);
 			for (String line : ext) {
 				out.println(line);
 			}
 			out.close();
 		}
-		for (int t : z10s.keySet()) {
+		log.info("end: process z9s\n");
+		
+		log.info("start: process z10s\n");
+		for (int t : z10s.keySet()) 
+		{
+			String infilename=dir + "tmp/" + ((t / 1024) / 2) + "-" + ((t % 1024) / 2) + "-9.osm";
+			log.info("parse file "+infilename);
+			
+			String outfilename=dir + "tmp/" + (t / 1024) + "-" + (t % 1024) + "-10.osm";
+			log.info("generate file "+outfilename);
+			
 			int x = (t / 1024) * 4;
 			int y = (t % 1024) * 4;
 			MapBB bb = new MapBB();
@@ -237,14 +428,18 @@ public class Jsearch {
 			bb.maxlon = tile2lon((x + 6) % 4095, 12);
 			bb.minlat = tile2lat(Math.min((y + 6), 4095), 12);
 			bb.maxlat = tile2lat(Math.max((y - 2), 0), 12);
-			ArrayList<String> ext = Extract.extractData(dir + "tmp/" + ((t / 1024) / 2) + "-" + ((t % 1024) / 2) + "-9.osm", bb);
-			PrintStream out = new PrintStream(dir + "tmp/" + (t / 1024) + "-" + (t % 1024) + "-10.osm");
+			ArrayList<String> ext = Extract.extractData(infilename, bb);
+			PrintStream out = new PrintStream(outfilename);
 			for (String line : ext) {
 				out.println(line);
 			}
 			out.close();
 		}
-		for (int t : z11s.keySet()) {
+		log.info("end: process z10s\n");
+			
+		log.info("start: process z11s\n");
+		for (int t : z11s.keySet()) 
+		{
 			int x = (t / 2048) * 2;
 			int y = (t % 2048) * 2;
 			MapBB bb = new MapBB();
@@ -259,9 +454,12 @@ public class Jsearch {
 				out.println(line);
 			}
 			out.close();
-			for (int i = (x+4095)%4096; i < x+3; i = (i+1)%4096) {
-				for (int j = Math.max(y-1, 0); j < y+3; j = Math.min(j+1, 4095)) {
-					if (z12s.containsKey(i*4096+j)) {
+			for (int i = (x+4095)%4096; i < x+3; i = (i+1)%4096) 
+			{
+				for (int j = Math.max(y-1, 0); j < y+3; j = Math.min(j+1, 4095)) 
+				{
+					if (z12s.containsKey(i*4096+j)) 
+					{
 						z12s.remove(i*4096+j);
 						bb = new MapBB();
 						bb.minlon = tile2lon((i + 4095) % 4096, 12);
@@ -278,11 +476,10 @@ public class Jsearch {
 				}
 			}
 		}
-		
-		System.exit(0);
 	}
 
-	static int lon2xtile(double lon, int zoom) {
+	static int lon2xtile(double lon, int zoom) 
+	{
 		int xtile = (int) Math.floor((lon + 180) / 360 * (1 << zoom));
 		if (xtile < 0)
 			xtile = 0;
@@ -291,7 +488,8 @@ public class Jsearch {
 		return (xtile);
 	}
 
-	static int lat2ytile(double lat, int zoom) {
+	static int lat2ytile(double lat, int zoom) 
+	{
 		int ytile = (int) Math.floor((1 - Math.log(Math.tan(Math.toRadians(lat)) + 1 / Math.cos(Math.toRadians(lat))) / Math.PI) / 2 * (1 << zoom));
 		if (ytile < 0)
 			ytile = 0;
@@ -300,7 +498,8 @@ public class Jsearch {
 		return (ytile);
 	}
 
-	MapBB tile2bb(final int x, final int y, final int zoom) {
+	MapBB tile2bb(final int x, final int y, final int zoom) 
+	{
 		MapBB bb = new MapBB();
 		bb.maxlat = tile2lat(y, zoom);
 		bb.minlat = tile2lat(y + 1, zoom);
@@ -309,11 +508,13 @@ public class Jsearch {
 		return bb;
 	}
 
-	static double tile2lon(int x, int z) {
+	static double tile2lon(int x, int z) 
+	{
 		return x / Math.pow(2.0, z) * 360.0 - 180;
 	}
 
-	static double tile2lat(int y, int z) {
+	static double tile2lat(int y, int z) 
+	{
 		double n = Math.PI - (2.0 * Math.PI * y) / Math.pow(2.0, z);
 		return Math.toDegrees(Math.atan(Math.sinh(n)));
 	}

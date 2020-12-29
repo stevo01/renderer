@@ -12,8 +12,6 @@ package jsearch;
 import java.io.*;
 import java.util.*;
 
-import jsearch.Jsearch.MapBB;
-
 public class Extract {
 
 	public static ArrayList<String> extractData(String filename, MapBB box) throws IOException {
