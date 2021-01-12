@@ -13,12 +13,12 @@ import java.io.*;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.nio.file.*;
 
 
 public class Jsearch {
 	
 	private static final Logger log = Logger.getLogger( Jsearch.class.getName() );
-	
 	
 	public static void main(String[] args) throws Exception 
 	{
@@ -36,18 +36,47 @@ public class Jsearch {
 		{
 			int x_z9 = Integer.parseInt(args[1]);
 			int y_z9 = Integer.parseInt(args[2]);
+			bbinfo(x_z9, y_z9);
 			generate_static(dir, x_z9, y_z9);
 		}	
-	
+		else if(args.length == 3)
+		{
+			System.err.println("Usage: java -jar jsearch.jar <osm directory>");
+			System.err.println("");
+			System.err.println("optional usage: java -jar jsearch.jar <osm directory> <xtile z=9> <ytile z=9>");
+            System.exit(0);
+		}
+		
+		
 		log.info("end: Jsearch\n");
 
 		long stopTime = System.currentTimeMillis();
 		log.info(String.format("Runtime = %d ms",stopTime - startTime));
 		
-		System.exit(0);
+	}
+	
+	static void bbinfo(int x_z9, int y_z9) 
+	{
+		MapBB bb = new MapBB();
+		bb.minlon = tile2lon(x_z9, 9);
+		bb.maxlon = tile2lon(x_z9+1, 9);
+		bb.minlat = tile2lat(y_z9, 9);
+		bb.maxlat = tile2lat(y_z9+1, 9);
+		
+		MapBB bb_ext = new MapBB();
+		int x = x_z9 * 8;
+		int y = y_z9 * 8;
+		bb_ext.minlon = tile2lon((x + 4094) % 4096, 12);
+		bb_ext.maxlon = tile2lon((x + 10) % 4095, 12);
+		bb_ext.minlat = tile2lat(Math.min((y + 10), 4095), 12);
+		bb_ext.maxlat = tile2lat(Math.max((y - 2), 0), 12);
+		
+		log.info("bb     info" + bb.getinfo());
+		log.info("bb_ext info" + bb_ext.getinfo());
 		
 	}
 	
+	// select all tiles for a given area ( zoom level 9 - 12 )
 	static void generate_static(String dir, int x_z9, int y_z9) throws Exception
     {
 		HashMap<Integer, Boolean> z9s = new HashMap<Integer, Boolean>();
@@ -107,7 +136,6 @@ public class Jsearch {
 		log.info("Start of Jsearch\n");
 		log.info("analyse diff file="+InputFile+"\n");
 		
-		// todo: set filename and path via command line argument instead usage of fix filename ...
 		BufferedReader in = new BufferedReader(new FileReader(dir + "diffs"));
 		String ln;
 		while ((ln = in.readLine()) != null) 
@@ -150,13 +178,13 @@ public class Jsearch {
 		in.close();
 		
 		
-		System.out.format("new nodes=%d%n",nnodes.size());
-		System.out.format("new  ways=%d%n",nways.size());
-		System.out.format("new  rels=%d%n",nrels.size());
+		log.info(String.format("new nodes=%d%n",nnodes.size()));
+		log.info(String.format("new  ways=%d%n",nways.size()));
+		log.info(String.format("new  rels=%d%n",nrels.size()));
 		
-		System.out.format("removed nodes=%d%n",cnodes.size());
-		System.out.format("removed  ways=%d%n",cways.size());
-		System.out.format("removed  rels=%d%n",crels.size());
+		log.info(String.format("removed nodes=%d%n",cnodes.size()));
+		log.info(String.format("removed  ways=%d%n",cways.size()));
+		log.info(String.format("removed  rels=%d%n",crels.size()));
 		
 		boolean next = false;
 		do 
@@ -375,6 +403,7 @@ public class Jsearch {
 		return;
 	}
 		
+	// generate the osm files for zoom level 9-12
 	static void generate_osm_extract(String dir,
 									 HashMap<Integer, Boolean> z9s, 
 				  					 HashMap<Integer, Boolean> z10s,
@@ -382,7 +411,7 @@ public class Jsearch {
 									 HashMap<Integer, Boolean> z12s) throws Exception
 	{			
 		
-		System.out.format("bgn: generate osm files");
+		log.info("bgn: generate osm files");
 		log.info(String.format("number of files  z9s=%d", z9s.size()));
 		log.info(String.format("number of files z10s=%d", z10s.size()));
 		log.info(String.format("number of files z11s=%d", z11s.size()));
@@ -391,8 +420,8 @@ public class Jsearch {
 		log.info("bgn: process z9s");
 		for (int t : z9s.keySet()) 
 		{
-			String filename=dir + "tmp/" + (t / 512) + "-" + (t % 512) + "-9.osm";
-			log.info("generate file"+filename);
+			String z9nam=dir + "tmp/" + (t / 512) + "-" + (t % 512) + "-9.osm";
+			log.info("generate file"+z9nam);
 				
 		    // determine x.y tile from zoom level 12
 			int x = (t / 512) * 8;
@@ -403,43 +432,82 @@ public class Jsearch {
 			bb.minlat = tile2lat(Math.min((y + 10), 4095), 12);
 			bb.maxlat = tile2lat(Math.max((y - 2), 0), 12);
 			
+			// todo: the call of following time is time consuming
+			//       parse osm file (with seamark extract of planet)
+			//       evaluate usage of 
+			//       a) database with gis extensions
+			//       b) (lib)osmium 
+			log.info("bounding box:" + bb.getstring());
+			log.info("bounding box:" + bb.geojson());
 			ArrayList<String> ext = Extract.extractData(dir + "next.osm", bb);
-			PrintStream out = new PrintStream(filename);
-			for (String line : ext) {
-				out.println(line);
+			
+			if(ext.size() > 4) 
+			{
+				PrintStream out = new PrintStream(z9nam);
+				for (String line : ext) {
+					out.println(line);
+				}
+				out.close();
 			}
-			out.close();
+			else
+			{
+				log.info("skip generation of file "+z9nam);
+				continue;
+			}
 		}
 		log.info("end: process z9s\n");
 		
 		log.info("start: process z10s\n");
 		for (int t : z10s.keySet()) 
 		{
-			String infilename=dir + "tmp/" + ((t / 1024) / 2) + "-" + ((t % 1024) / 2) + "-9.osm";
-			log.info("parse file "+infilename);
+			String z9nam=dir + "tmp/" + ((t / 1024) / 2) + "-" + ((t % 1024) / 2) + "-9.osm";
+			log.info("parse file "+z9nam);
 			
-			String outfilename=dir + "tmp/" + (t / 1024) + "-" + (t % 1024) + "-10.osm";
-			log.info("generate file "+outfilename);
+			String z10nam=dir + "tmp/" + (t / 1024) + "-" + (t % 1024) + "-10.osm";
+			log.info("generate file "+z10nam);
 			
 			int x = (t / 1024) * 4;
 			int y = (t % 1024) * 4;
 			MapBB bb = new MapBB();
+			
+			// note: calculate the bounding box which is bigger then the tile area
 			bb.minlon = tile2lon((x + 4094) % 4096, 12);
 			bb.maxlon = tile2lon((x + 6) % 4095, 12);
 			bb.minlat = tile2lat(Math.min((y + 6), 4095), 12);
 			bb.maxlat = tile2lat(Math.max((y - 2), 0), 12);
-			ArrayList<String> ext = Extract.extractData(infilename, bb);
-			PrintStream out = new PrintStream(outfilename);
-			for (String line : ext) {
-				out.println(line);
+			log.info("bounding box:" + bb.geojson());
+			try{
+				ArrayList<String> ext = Extract.extractData(z9nam, bb);
+				if(ext.size() > 4) {
+					PrintStream out = new PrintStream(z10nam);
+					for (String line : ext) {
+						out.println(line);
+					}
+					out.close();
+				}
+				else
+				{
+					log.info("skip generation of file "+z10nam);
+					continue;	
+				}
 			}
-			out.close();
+			catch (IOException ex)
+			{
+				log.info("skip generation of file "+z10nam);
+				continue;
+			}
 		}
 		log.info("end: process z10s\n");
 			
 		log.info("start: process z11s\n");
 		for (int t : z11s.keySet()) 
 		{
+			String z10nam=dir + "tmp/" + ((t / 2048) / 2) + "-" + ((t % 2048) / 2) + "-10.osm";
+			log.info("parse file "+z10nam);
+			
+			String z11nam = dir + "tmp/" + (t / 2048) + "-" + (t % 2048) + "-11.osm";
+			log.info("generate file "+z11nam);
+			
 			int x = (t / 2048) * 2;
 			int y = (t % 2048) * 2;
 			MapBB bb = new MapBB();
@@ -447,33 +515,66 @@ public class Jsearch {
 			bb.maxlon = tile2lon((x + 4) % 4095, 12);
 			bb.minlat = tile2lat(Math.min((y + 4), 4095), 12);
 			bb.maxlat = tile2lat(Math.max((y - 2), 0), 12);
-			ArrayList<String> ext = Extract.extractData(dir + "tmp/" + ((t / 2048) / 2) + "-" + ((t % 2048) / 2) + "-10.osm", bb);
-			String z11nam = dir + "tmp/" + (t / 2048) + "-" + (t % 2048) + "-11.osm";
-			PrintStream out = new PrintStream(z11nam);
-			for (String line : ext) {
-				out.println(line);
-			}
-			out.close();
-			for (int i = (x+4095)%4096; i < x+3; i = (i+1)%4096) 
+			log.info("bounding box:" + bb.geojson());
+			try
 			{
-				for (int j = Math.max(y-1, 0); j < y+3; j = Math.min(j+1, 4095)) 
+				ArrayList<String> ext = Extract.extractData(z10nam, bb);
+				if(ext.size() > 4) 
 				{
-					if (z12s.containsKey(i*4096+j)) 
+					PrintStream out = new PrintStream(z11nam);
+					for (String line : ext) {
+						out.println(line);
+					}
+					out.close();
+				}
+				else
+				{
+					log.info("skip generation of file "+z11nam);
+					continue;
+				}
+				
+				
+				for (int i = (x+4095)%4096; i < x+3; i = (i+1)%4096) 
+				{
+					for (int j = Math.max(y-1, 0); j < y+3; j = Math.min(j+1, 4095)) 
 					{
-						z12s.remove(i*4096+j);
-						bb = new MapBB();
-						bb.minlon = tile2lon((i + 4095) % 4096, 12);
-						bb.maxlon = tile2lon((i + 2) % 4095, 12);
-						bb.minlat = tile2lat(Math.min((j + 2), 4095), 12);
-						bb.maxlat = tile2lat(Math.max((j - 1), 0), 12);
-						ext = Extract.extractData(z11nam, bb);
-						out = new PrintStream(dir + "tmp/" + i + "-" + j + "-12.osm");
-						for (String line : ext) {
-							out.println(line);
+						if (z12s.containsKey(i*4096+j)) 
+						{
+	
+							log.info("parse file "+z11nam);
+							
+							String z12nam = dir + "tmp/" + i + "-" + j + "-12.osm";
+							log.info("generate file "+z12nam);
+							
+							z12s.remove(i*4096+j);
+							bb = new MapBB();
+							bb.minlon = tile2lon((i + 4095) % 4096, 12);
+							bb.maxlon = tile2lon((i + 2) % 4095, 12);
+							bb.minlat = tile2lat(Math.min((j + 2), 4095), 12);
+							bb.maxlat = tile2lat(Math.max((j - 1), 0), 12);
+							log.info("bounding box:" + bb.geojson());
+							ext = Extract.extractData(z11nam, bb);
+							if(ext.size() > 4) 
+							{
+								PrintStream out = new PrintStream(z12nam);
+								for (String line : ext) {
+									out.println(line);
+								}
+								out.close();
+							}
+							else
+							{
+								log.info("skip generation of file "+z12nam);
+								continue;
+							}
 						}
-						out.close();
 					}
 				}
+			}
+			catch (IOException ex)
+			{
+				log.info("skip generation of file "+z11nam);
+				continue;
 			}
 		}
 	}

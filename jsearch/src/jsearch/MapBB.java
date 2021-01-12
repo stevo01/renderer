@@ -8,7 +8,13 @@ public class MapBB {
 	
 	public String getstring() 
 	{
-		String ret = String.format("%f %f %f %f", minlat, minlon, maxlat, maxlon);
+		String ret = String.format("%f, %f, %f, %f", minlat, minlon, maxlat, maxlon);
+		return ret;
+	}
+	
+	public String getinfo() 
+	{
+		String ret = String.format("(minlat, minlon, maxlat, maxlon) %f, %f, %f, %f", minlat, minlon, maxlat, maxlon);
 		return ret;
 	}
 	
